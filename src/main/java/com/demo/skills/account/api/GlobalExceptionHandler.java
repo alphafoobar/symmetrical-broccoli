@@ -39,7 +39,6 @@ public class GlobalExceptionHandler {
         ProblemDetail.forStatusAndDetail(UNPROCESSABLE_CONTENT, ex.getMessage());
     problem.setTitle("Account Limit Exceeded");
     problem.setType(URI.create("https://errors.demo.com/account-limit-exceeded"));
-    problem.setProperty("customerId", ex.customerId());
     return problem;
   }
 
