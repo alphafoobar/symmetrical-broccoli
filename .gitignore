@@ -28,6 +28,9 @@ out/
 
 ### OpenTofu / Terraform ###
 **/.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.tfstate.lock.info
 *.tfvars
 *.tfvars.json
 
@@ -40,4 +43,3 @@ out/
 
 ### VS Code ###
 .vscode/
-/infra/.terraform.lock.hcl
