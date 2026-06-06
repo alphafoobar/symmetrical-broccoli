@@ -262,6 +262,16 @@ class AccountControllerTest {
           .perform(get("/api/v1/accounts/{accountId}", UUID.randomUUID()))
           .andExpect(status().isUnauthorized());
     }
+
+    @Test
+    @DisplayName("returns 403 when JWT lacks customer account scope")
+    void returns403WhenScopeMissing() throws Exception {
+      mockMvc
+          .perform(
+              get("/api/v1/accounts/{accountId}", UUID.randomUUID())
+                  .with(jwtWithoutAccountScope()))
+          .andExpect(status().isForbidden());
+    }
   }
 
   @Nested
@@ -290,6 +300,14 @@ class AccountControllerTest {
     void returns401WhenNotAuthenticated() throws Exception {
       mockMvc.perform(get("/api/v1/accounts")).andExpect(status().isUnauthorized());
     }
+
+    @Test
+    @DisplayName("returns 403 when JWT lacks customer account scope")
+    void returns403WhenScopeMissing() throws Exception {
+      mockMvc
+          .perform(get("/api/v1/accounts").with(jwtWithoutAccountScope()))
+          .andExpect(status().isForbidden());
+    }
   }
 
   // --- helpers ---
@@ -310,5 +328,9 @@ class AccountControllerTest {
         .jwt(j -> j.subject(CUSTOMER_ID))
         .authorities(
             new SimpleGrantedAuthority("SCOPE_" + SecurityConfig.CUSTOMER_ACCOUNT_SCOPE));
+  }
+
+  private static RequestPostProcessor jwtWithoutAccountScope() {
+    return SecurityMockMvcRequestPostProcessors.jwt().jwt(j -> j.subject(CUSTOMER_ID));
   }
 }
