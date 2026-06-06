@@ -46,8 +46,8 @@ public class AccountService {
   @CacheEvict(value = "accountList", key = "#customerId")
   public AccountResponse createAccount(
       final String customerId, final CreateAccountRequest request) {
-    val nickName = request.getNickName();
-    naughtyNameService.containsBlockedNicknameToken(nickName);
+    val nickname = request.getNickname();
+    naughtyNameService.containsBlockedNicknameToken(nickname);
 
     accountRepository.lockCustomerAccountCreation(customerId);
 
@@ -66,7 +66,7 @@ public class AccountService {
             .suffix(allocation.suffix())
             .customerId(customerId)
             .customerName(request.getCustomerName())
-            .nickName(nickName)
+            .nickname(nickname)
             .status(AccountStatus.ACTIVE)
             .createdAt(now)
             .updatedAt(now)

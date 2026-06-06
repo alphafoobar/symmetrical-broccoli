@@ -33,11 +33,15 @@ public class NaughtyNameService {
     }
 
     val candidatesToCheck = allowedNicknameList.candidatesToCheck(candidates);
-    if (!candidatesToCheck.isEmpty()
-        && blockedNicknameList.containsBlockedWord(candidatesToCheck)) {
+    if (candidatesToCheck.isEmpty()) {
+      return;
+    }
+
+    if (blockedNicknameList.containsBlockedWord(candidatesToCheck)) {
+      // This might log profanities, but it may be useful to check if any should be whitelisted.
       log.atInfo()
-              .addKeyValue("nickname", nickname)
-              .log("Nickname contains blocked token");
+          .addKeyValue("candidatesToCheck", candidatesToCheck)
+          .log("Nickname contains blocked token");
       throw new NicknameNotAllowedException();
     }
   }

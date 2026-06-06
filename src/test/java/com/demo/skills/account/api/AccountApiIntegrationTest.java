@@ -72,7 +72,7 @@ class AccountApiIntegrationTest {
     // given
     val createRequest = new CreateAccountRequest();
     createRequest.setCustomerName("Alice Smith");
-    createRequest.setNickName("MySavings");
+    createRequest.setNickname("MySavings");
 
     // when — create
     val createResponse =
@@ -87,7 +87,7 @@ class AccountApiIntegrationTest {
     val created = createResponse.getBody();
     assertThat(created).isNotNull();
     assertThat(created.getCustomerName()).isEqualTo("Alice Smith");
-    assertThat(created.getNickName()).isEqualTo("MySavings");
+    assertThat(created.getNickname()).isEqualTo("MySavings");
     assertThat(created.getStatus()).isEqualTo(AccountStatus.ACTIVE);
     assertThat(created.getAccountNumber()).startsWith("03 1509");
     assertThat(created.getAccountNumber()).endsWith("00");
@@ -174,7 +174,7 @@ class AccountApiIntegrationTest {
     // given
     val createRequest = new CreateAccountRequest();
     createRequest.setCustomerName("Charlie Brown");
-    createRequest.setNickName("bullshit");
+    createRequest.setNickname("bullshit");
 
     // when
     val response =

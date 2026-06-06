@@ -111,7 +111,7 @@ class AccountServiceTest {
       // given
       val request = new CreateAccountRequest();
       request.setCustomerName("Alice Smith");
-      request.setNickName("blocked");
+      request.setNickname("blocked");
       willThrow(new NicknameNotAllowedException())
           .given(naughtyNameService)
           .containsBlockedNicknameToken("blocked");
@@ -129,7 +129,7 @@ class AccountServiceTest {
       // given
       val request = new CreateAccountRequest();
       request.setCustomerName("Alice Smith");
-      request.setNickName("safe blocked");
+      request.setNickname("safe blocked");
       willThrow(new NicknameNotAllowedException())
           .given(naughtyNameService)
           .containsBlockedNicknameToken("safe blocked");
@@ -147,7 +147,7 @@ class AccountServiceTest {
       // given
       val request = new CreateAccountRequest();
       request.setCustomerName("Alice Smith");
-      request.setNickName("notallowed1");
+      request.setNickname("notallowed1");
       willThrow(new NicknameNotAllowedException())
           .given(naughtyNameService)
           .containsBlockedNicknameToken("notallowed1");

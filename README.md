@@ -116,7 +116,7 @@ curl -i \
   -X POST http://localhost:8080/api/v1/accounts \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
-  -d '{"customerName":"Alice Smith","nickName":"MySavings"}'
+  -d '{"customerName":"Alice Smith","nickname":"MySavings"}'
 ```
 
 Run the project checks:

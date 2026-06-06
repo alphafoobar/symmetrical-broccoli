@@ -168,11 +168,13 @@ components:
           type: string
           minLength: 1
           maxLength: 250
+          pattern: '^\S+(?: \S+)*$'
           description: Full name of the customer
-        nickName:
+        nickname:
           type: string
           minLength: 5
           maxLength: 30
+          pattern: '^\S+(?: \S+)*$'
           description: Optional account nickname (must not contain offensive language)
     AccountStatus:
       type: string
@@ -204,7 +206,7 @@ components:
           description: Customer identifier from JWT subject claim
         customerName:
           type: string
-        nickName:
+        nickname:
           type: string
           nullable: true
         status:

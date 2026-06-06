@@ -97,8 +97,21 @@ class AccountControllerTest {
     }
 
     @Test
-    @DisplayName("returns 400 when nickName is too short (< 5 chars)")
-    void returns400WhenNickNameTooShort() throws Exception {
+    @DisplayName("returns 400 when customerName is whitespace only")
+    void returns400WhenCustomerNameWhitespaceOnly() throws Exception {
+      mockMvc
+          .perform(
+              post("/api/v1/accounts")
+                  .with(accountJwt())
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content(objectMapper.writeValueAsString(Map.of("customerName", "   "))))
+          .andExpect(status().isBadRequest())
+          .andExpect(jsonPath("$.title").value("Validation Error"));
+    }
+
+    @Test
+    @DisplayName("returns 400 when customerName contains repeated spaces")
+    void returns400WhenCustomerNameContainsRepeatedSpaces() throws Exception {
       mockMvc
           .perform(
               post("/api/v1/accounts")
@@ -106,7 +119,52 @@ class AccountControllerTest {
                   .contentType(MediaType.APPLICATION_JSON)
                   .content(
                       objectMapper.writeValueAsString(
-                          Map.of("customerName", "Alice Smith", "nickName", "ab"))))
+                          Map.of("customerName", "Alice  Smith"))))
+          .andExpect(status().isBadRequest())
+          .andExpect(jsonPath("$.title").value("Validation Error"));
+    }
+
+    @Test
+    @DisplayName("returns 400 when nickname is too short (< 5 chars)")
+    void returns400WhenNicknameTooShort() throws Exception {
+      mockMvc
+          .perform(
+              post("/api/v1/accounts")
+                  .with(accountJwt())
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content(
+                      objectMapper.writeValueAsString(
+                          Map.of("customerName", "Alice Smith", "nickname", "ab"))))
+          .andExpect(status().isBadRequest())
+          .andExpect(jsonPath("$.title").value("Validation Error"));
+    }
+
+    @Test
+    @DisplayName("returns 400 when provided nickname is whitespace only")
+    void returns400WhenNicknameWhitespaceOnly() throws Exception {
+      mockMvc
+          .perform(
+              post("/api/v1/accounts")
+                  .with(accountJwt())
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content(
+                      objectMapper.writeValueAsString(
+                          Map.of("customerName", "Alice Smith", "nickname", "     "))))
+          .andExpect(status().isBadRequest())
+          .andExpect(jsonPath("$.title").value("Validation Error"));
+    }
+
+    @Test
+    @DisplayName("returns 400 when provided nickname contains repeated spaces")
+    void returns400WhenNicknameContainsRepeatedSpaces() throws Exception {
+      mockMvc
+          .perform(
+              post("/api/v1/accounts")
+                  .with(accountJwt())
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content(
+                      objectMapper.writeValueAsString(
+                          Map.of("customerName", "Alice Smith", "nickname", "My  Savings"))))
           .andExpect(status().isBadRequest())
           .andExpect(jsonPath("$.title").value("Validation Error"));
     }
@@ -153,7 +211,7 @@ class AccountControllerTest {
                   .contentType(MediaType.APPLICATION_JSON)
                   .content(
                       objectMapper.writeValueAsString(
-                          Map.of("customerName", "Alice", "nickName", "badword"))))
+                          Map.of("customerName", "Alice", "nickname", "badword"))))
           .andExpect(status().isUnprocessableContent())
           .andExpect(jsonPath("$.type").value("https://errors.demo.com/nickname-not-allowed"));
     }

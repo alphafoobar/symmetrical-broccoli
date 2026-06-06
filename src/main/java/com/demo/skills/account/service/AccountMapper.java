@@ -23,4 +23,3 @@ public interface AccountMapper {
       expression = "java(account.getCreatedAt().atOffset(java.time.ZoneOffset.UTC))")
   AccountResponse toResponse(Account account);
 }
-

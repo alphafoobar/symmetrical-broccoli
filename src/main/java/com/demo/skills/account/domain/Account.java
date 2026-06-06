@@ -44,7 +44,7 @@ public class Account {
   private String customerName;
 
   @Nullable
-  private String nickName;
+  private String nickname;
 
   @Enumerated(EnumType.STRING)
   @Column(nullable = false)

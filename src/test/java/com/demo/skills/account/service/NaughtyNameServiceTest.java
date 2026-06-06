@@ -1,5 +1,6 @@
 package com.demo.skills.account.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -17,8 +18,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class NaughtyNameServiceTest {
 
   @Mock
@@ -67,6 +70,26 @@ class NaughtyNameServiceTest {
       // when / then
       assertThatThrownBy(() -> naughtyNameService.containsBlockedNicknameToken("blocked"))
           .isInstanceOf(NicknameNotAllowedException.class);
+    }
+
+    @Test
+    @DisplayName("logs candidates to check without raw nickname when nickname is blocked")
+    void logsCandidatesToCheckWithoutRawNicknameWhenNicknameBlocked(final CapturedOutput output) {
+      // given
+      val nickname = "private blocked nickname";
+      val candidatesToCheck = List.of("private", "blocked", "nickname", "privateblockednickname");
+      given(allowedNicknameList.candidatesToCheck(any())).willReturn(candidatesToCheck);
+      given(blockedNicknameList.containsBlockedWord(candidatesToCheck)).willReturn(true);
+
+      // when / then
+      assertThatThrownBy(() -> naughtyNameService.containsBlockedNicknameToken(nickname))
+          .isInstanceOf(NicknameNotAllowedException.class);
+
+      assertThat(output)
+          .contains("Nickname contains blocked token")
+          .contains("candidatesToCheck")
+          .contains("privateblockednickname")
+          .doesNotContain(nickname);
     }
 
     @Test

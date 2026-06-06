@@ -56,8 +56,8 @@
       <h2>Create Account</h2>
       <label for="customerName">Customer Name <span style="color:#dc2626">*</span></label>
       <input type="text" id="customerName" placeholder="Alice Smith" maxlength="250" />
-      <label for="nickName">Nickname (optional, 5-30 characters)</label>
-      <input type="text" id="nickName" placeholder="MySavings" minlength="5" maxlength="30" />
+      <label for="nickname">Nickname (optional, 5-30 characters)</label>
+      <input type="text" id="nickname" placeholder="MySavings" minlength="5" maxlength="30" />
       <button onclick="createAccount()">Create Account</button>
       <div id="createResult"></div>
     </div>
@@ -188,13 +188,13 @@
 
     async function createAccount() {
       const customerName = document.getElementById('customerName').value.trim();
-      const nickName = document.getElementById('nickName').value.trim();
+      const nickname = document.getElementById('nickname').value.trim();
       if (!customerName) {
         renderResult('createResult', 'Customer name is required.', true);
         return;
       }
       const body = { customerName };
-      if (nickName) body.nickName = nickName;
+      if (nickname) body.nickname = nickname;
 
       try {
         const resp = await fetch(`${API_BASE}/accounts`, {
