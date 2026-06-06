@@ -1,7 +1,14 @@
 resource "aws_security_group" "alb" {
   name        = "skills-${var.environment}-alb"
-  description = "Allow HTTPS inbound to ALB"
+  description = "Allow web inbound to ALB"
   vpc_id      = aws_vpc.main.id
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
   ingress {
     from_port   = 443
@@ -38,34 +45,6 @@ resource "aws_security_group" "app" {
   }
 }
 
-resource "tls_private_key" "api" {
-  algorithm = "RSA"
-  rsa_bits  = 2048
-}
-
-resource "tls_self_signed_cert" "api" {
-  private_key_pem = tls_private_key.api.private_key_pem
-
-  subject {
-    common_name  = "skills-${var.environment}.local"
-    organization = "skills"
-  }
-
-  validity_period_hours = 8760
-  early_renewal_hours   = 720
-
-  allowed_uses = [
-    "digital_signature",
-    "key_encipherment",
-    "server_auth",
-  ]
-}
-
-resource "aws_acm_certificate" "api" {
-  private_key      = tls_private_key.api.private_key_pem
-  certificate_body = tls_self_signed_cert.api.cert_pem
-}
-
 data "aws_iam_policy_document" "ecs_assume" {
   statement {
     effect  = "Allow"
@@ -88,12 +67,7 @@ resource "aws_iam_role_policy_attachment" "execution_policy" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-resource "aws_iam_role" "task" {
-  name               = "skills-${var.environment}-ecs-task"
-  assume_role_policy = data.aws_iam_policy_document.ecs_assume.json
-}
-
-data "aws_iam_policy_document" "task" {
+data "aws_iam_policy_document" "execution_secrets" {
   statement {
     effect    = "Allow"
     actions   = ["secretsmanager:GetSecretValue"]
@@ -101,9 +75,14 @@ data "aws_iam_policy_document" "task" {
   }
 }
 
-resource "aws_iam_role_policy" "task" {
-  role   = aws_iam_role.task.id
-  policy = data.aws_iam_policy_document.task.json
+resource "aws_iam_role_policy" "execution_secrets" {
+  role   = aws_iam_role.execution.id
+  policy = data.aws_iam_policy_document.execution_secrets.json
+}
+
+resource "aws_iam_role" "task" {
+  name               = "skills-${var.environment}-ecs-task"
+  assume_role_policy = data.aws_iam_policy_document.ecs_assume.json
 }
 
 resource "aws_cloudwatch_log_group" "app" {
@@ -137,7 +116,7 @@ resource "aws_ecs_task_definition" "app" {
   container_definitions = jsonencode([
     {
       name      = "app"
-      image     = var.image_uri
+      image     = local.image_uri
       essential = true
 
       portMappings = [
@@ -146,24 +125,18 @@ resource "aws_ecs_task_definition" "app" {
 
       environment = [
         { name = "SPRING_PROFILES_ACTIVE", value = var.environment },
-        { name = "SPRING_DATA_REDIS_HOST", value = aws_elasticache_replication_group.main.primary_endpoint_address },
-        { name = "SPRING_DATA_REDIS_PORT", value = tostring(var.redis_port) },
-        { name = "SPRING_DATA_REDIS_SSL_ENABLED", value = "true" },
+        { name = "JDBC_DATABASE_URL", value = "jdbc:postgresql://${aws_rds_cluster.main.endpoint}:${aws_rds_cluster.main.port}/${var.db_name}" },
+        { name = "REDIS_HOST", value = aws_elasticache_replication_group.main.primary_endpoint_address },
+        { name = "REDIS_PORT", value = tostring(var.redis_port) },
+        { name = "REDIS_SSL_ENABLED", value = "true" },
+        { name = "JWT_ISSUER_URI", value = local.mock_issuer_uri },
+        { name = "JWT_JWK_SET_URI", value = local.mock_jwk_set_uri },
       ]
 
       secrets = [
-        { name = "SPRING_DATASOURCE_URL", valueFrom = "${aws_rds_cluster.main.master_user_secret[0].secret_arn}:url::" },
-        { name = "SPRING_DATASOURCE_USERNAME", valueFrom = "${aws_rds_cluster.main.master_user_secret[0].secret_arn}:username::" },
-        { name = "SPRING_DATASOURCE_PASSWORD", valueFrom = "${aws_rds_cluster.main.master_user_secret[0].secret_arn}:password::" },
+        { name = "JDBC_DATABASE_USERNAME", valueFrom = "${aws_rds_cluster.main.master_user_secret[0].secret_arn}:username::" },
+        { name = "JDBC_DATABASE_PASSWORD", valueFrom = "${aws_rds_cluster.main.master_user_secret[0].secret_arn}:password::" },
       ]
-
-      healthCheck = {
-        command     = ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health/readiness || exit 1"]
-        interval    = 30
-        timeout     = 5
-        retries     = 3
-        startPeriod = 60
-      }
 
       logConfiguration = {
         logDriver = "awslogs"
@@ -171,6 +144,61 @@ resource "aws_ecs_task_definition" "app" {
           awslogs-group         = aws_cloudwatch_log_group.app.name
           awslogs-region        = var.aws_region
           awslogs-stream-prefix = "ecs"
+        }
+      }
+    }
+  ])
+}
+
+resource "aws_ecs_task_definition" "auth" {
+  family                   = "skills-${var.environment}-auth"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = 256
+  memory                   = 512
+  execution_role_arn       = aws_iam_role.execution.arn
+  task_role_arn            = aws_iam_role.task.arn
+
+  container_definitions = jsonencode([
+    {
+      name      = "auth"
+      image     = var.mock_oauth2_image
+      essential = true
+
+      portMappings = [
+        { containerPort = 8080, protocol = "tcp" }
+      ]
+
+      environment = [
+        {
+          name = "JSON_CONFIG"
+          value = jsonencode({
+            tokenCallbacks = [
+              {
+                issuerId = "default"
+                requestMappings = [
+                  {
+                    requestParam = "grant_type"
+                    match        = "client_credentials"
+                    claims = {
+                      sub   = "$${clientId}"
+                      scope = "customer.account.my"
+                      aud   = ["skills-api"]
+                    }
+                  }
+                ]
+              }
+            ]
+          })
+        }
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.app.name
+          awslogs-region        = var.aws_region
+          awslogs-stream-prefix = "auth"
         }
       }
     }
@@ -201,16 +229,79 @@ resource "aws_lb_target_group" "app" {
   }
 }
 
+resource "aws_lb_target_group" "auth" {
+  name        = "skills-${var.environment}-auth"
+  port        = 8080
+  protocol    = "HTTP"
+  vpc_id      = aws_vpc.main.id
+  target_type = "ip"
+
+  health_check {
+    path                = "/default/.well-known/openid-configuration"
+    matcher             = "200"
+    interval            = 30
+    healthy_threshold   = 2
+    unhealthy_threshold = 3
+  }
+}
+
+resource "aws_lb_listener" "http" {
+  count             = local.api_listener_is_https ? 0 : 1
+  load_balancer_arn = aws_lb.main.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.app.arn
+  }
+}
+
+resource "aws_lb_listener_rule" "http_auth" {
+  count        = local.api_listener_is_https ? 0 : 1
+  listener_arn = aws_lb_listener.http[0].arn
+  priority     = 10
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.auth.arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/default/*"]
+    }
+  }
+}
+
 resource "aws_lb_listener" "https" {
+  count             = local.api_listener_is_https ? 1 : 0
   load_balancer_arn = aws_lb.main.arn
   port              = 443
   protocol          = "HTTPS"
-  certificate_arn   = aws_acm_certificate.api.arn
+  certificate_arn   = var.api_certificate_arn
   ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
 
   default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.app.arn
+  }
+}
+
+resource "aws_lb_listener_rule" "https_auth" {
+  count        = local.api_listener_is_https ? 1 : 0
+  listener_arn = aws_lb_listener.https[0].arn
+  priority     = 10
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.auth.arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/default/*"]
+    }
   }
 }
 
@@ -238,5 +329,38 @@ resource "aws_ecs_service" "app" {
     rollback = true
   }
 
-  depends_on = [aws_lb_listener.https]
+  depends_on = [
+    aws_lb_listener.http,
+    aws_lb_listener.https,
+  ]
+}
+
+resource "aws_ecs_service" "auth" {
+  name            = "skills-${var.environment}-auth"
+  cluster         = aws_ecs_cluster.main.id
+  task_definition = aws_ecs_task_definition.auth.arn
+  desired_count   = 1
+  launch_type     = "FARGATE"
+
+  network_configuration {
+    subnets          = aws_subnet.private[*].id
+    security_groups  = [aws_security_group.app.id]
+    assign_public_ip = false
+  }
+
+  load_balancer {
+    target_group_arn = aws_lb_target_group.auth.arn
+    container_name   = "auth"
+    container_port   = 8080
+  }
+
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
+
+  depends_on = [
+    aws_lb_listener.http,
+    aws_lb_listener.https,
+  ]
 }

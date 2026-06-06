@@ -2,7 +2,7 @@
 # TLS is terminated at the CloudFront distribution using AWS-managed certificates.
 
 resource "aws_s3_bucket" "frontend" {
-  bucket = "skills-${var.environment}-frontend"
+  bucket = local.frontend_bucket_name
 }
 
 resource "aws_s3_bucket_public_access_block" "frontend" {
@@ -22,13 +22,26 @@ resource "aws_cloudfront_origin_access_control" "frontend" {
 
 resource "aws_cloudfront_distribution" "frontend" {
   enabled             = true
+  comment             = "Skills ${var.environment} frontend distribution"
   default_root_object = "index.html"
-  price_class         = "PriceClass_100"
+  price_class         = "PriceClass_All"
 
   origin {
     domain_name              = aws_s3_bucket.frontend.bucket_regional_domain_name
     origin_id                = "s3-frontend"
     origin_access_control_id = aws_cloudfront_origin_access_control.frontend.id
+  }
+
+  origin {
+    domain_name = aws_lb.main.dns_name
+    origin_id   = "alb-api"
+
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = local.api_listener_is_https ? "https-only" : "http-only"
+      origin_ssl_protocols   = ["TLSv1.2"]
+    }
   }
 
   default_cache_behavior {
@@ -50,6 +63,48 @@ resource "aws_cloudfront_distribution" "frontend" {
     max_ttl     = 31536000
   }
 
+  ordered_cache_behavior {
+    path_pattern           = "/api/*"
+    allowed_methods        = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+    cached_methods         = ["GET", "HEAD", "OPTIONS"]
+    target_origin_id       = "alb-api"
+    viewer_protocol_policy = "redirect-to-https"
+
+    forwarded_values {
+      headers      = ["Authorization", "Content-Type"]
+      query_string = true
+
+      cookies {
+        forward = "none"
+      }
+    }
+
+    min_ttl     = 0
+    default_ttl = 0
+    max_ttl     = 0
+  }
+
+  ordered_cache_behavior {
+    path_pattern           = "/default/*"
+    allowed_methods        = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+    cached_methods         = ["GET", "HEAD", "OPTIONS"]
+    target_origin_id       = "alb-api"
+    viewer_protocol_policy = "redirect-to-https"
+
+    forwarded_values {
+      headers      = ["Authorization", "Content-Type"]
+      query_string = true
+
+      cookies {
+        forward = "none"
+      }
+    }
+
+    min_ttl     = 0
+    default_ttl = 0
+    max_ttl     = 0
+  }
+
   restrictions {
     geo_restriction {
       restriction_type = "none"
@@ -58,6 +113,10 @@ resource "aws_cloudfront_distribution" "frontend" {
 
   viewer_certificate {
     cloudfront_default_certificate = true
+  }
+
+  tags = {
+    Name = "skills-${var.environment}-frontend"
   }
 }
 

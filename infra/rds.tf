@@ -34,7 +34,7 @@ resource "aws_rds_cluster" "main" {
   cluster_identifier          = "skills-${var.environment}"
   engine                      = "aurora-postgresql"
   engine_mode                 = "provisioned"
-  engine_version              = "16.4"
+  engine_version              = "16.13"
   database_name               = var.db_name
   master_username             = "skills_admin"
   manage_master_user_password = true

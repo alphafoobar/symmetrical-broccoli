@@ -126,7 +126,7 @@ class AccountControllerTest {
                   .contentType(MediaType.APPLICATION_JSON)
                   .content(
                       objectMapper.writeValueAsString(Map.of("customerName", "Alice Smith"))))
-          .andExpect(status().isUnprocessableEntity())
+          .andExpect(status().isUnprocessableContent())
           .andExpect(jsonPath("$.type").value("https://errors.demo.com/account-limit-exceeded"));
     }
 
@@ -147,7 +147,7 @@ class AccountControllerTest {
                   .content(
                       objectMapper.writeValueAsString(
                           Map.of("customerName", "Alice", "nickName", "badword"))))
-          .andExpect(status().isUnprocessableEntity())
+          .andExpect(status().isUnprocessableContent())
           .andExpect(jsonPath("$.type").value("https://errors.demo.com/nickname-not-allowed"));
     }
 

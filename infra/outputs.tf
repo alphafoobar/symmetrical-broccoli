@@ -4,8 +4,8 @@ output "load_balancer_dns_name" {
 }
 
 output "api_url" {
-  description = "HTTPS URL of the Application Load Balancer"
-  value       = "https://${aws_lb.main.dns_name}"
+  description = "URL of the Application Load Balancer"
+  value       = "${local.api_url_scheme}://${aws_lb.main.dns_name}"
 }
 
 output "frontend_url" {
@@ -45,6 +45,16 @@ output "service_name" {
   value       = aws_ecs_service.app.name
 }
 
+output "auth_service_name" {
+  description = "Mock OAuth2 ECS service name"
+  value       = aws_ecs_service.auth.name
+}
+
+output "mock_issuer_uri" {
+  description = "Mock OAuth2 issuer URI used by the API"
+  value       = local.mock_issuer_uri
+}
+
 output "task_role_arn" {
   description = "ECS task role ARN"
   value       = aws_iam_role.task.arn
@@ -55,7 +65,12 @@ output "execution_role_arn" {
   value       = aws_iam_role.execution.arn
 }
 
-output "api_certificate_arn" {
-  description = "ARN of the self-signed ACM certificate used by the ALB HTTPS listener"
-  value       = aws_acm_certificate.api.arn
+output "ecr_repository_url" {
+  description = "ECR repository URL for the API image"
+  value       = aws_ecr_repository.api.repository_url
+}
+
+output "image_uri" {
+  description = "API image URI referenced by the ECS task definition"
+  value       = local.image_uri
 }

@@ -22,7 +22,7 @@ public class SecurityConfig {
 
   /** Configures the security filter chain. */
   @Bean
-  SecurityFilterChain securityFilterChain(final HttpSecurity http) throws Exception {
+  SecurityFilterChain securityFilterChain(final HttpSecurity http) {
     return http
         .csrf(AbstractHttpConfigurer::disable)
         .sessionManagement(

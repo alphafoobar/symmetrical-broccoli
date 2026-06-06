@@ -28,9 +28,9 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
@@ -39,7 +39,7 @@ class AccountApiIntegrationTest {
 
   @Container
   @ServiceConnection
-  static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:17");
+  static final PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17");
 
   @Container
   @ServiceConnection(name = "redis")
@@ -210,7 +210,7 @@ class AccountApiIntegrationTest {
   void returns403WithoutScope() {
     // given
     val token = "missing-scope-token";
-    given(jwtDecoder.decode(token)).willReturn(jwtWithoutScope(token, customerId));
+    given(jwtDecoder.decode(token)).willReturn(jwtWithoutScope(customerId));
     val createRequest = new CreateAccountRequest();
     createRequest.setCustomerName("Eve");
 
@@ -246,8 +246,8 @@ class AccountApiIntegrationTest {
         .build();
   }
 
-  private static Jwt jwtWithoutScope(final String token, final String subject) {
-    return Jwt.withTokenValue(token)
+  private static Jwt jwtWithoutScope(final String subject) {
+    return Jwt.withTokenValue("missing-scope-token")
         .header("alg", "none")
         .subject(subject)
         .issuedAt(Instant.now())

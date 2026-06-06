@@ -14,7 +14,7 @@ public interface AccountRepository extends JpaRepository<Account, UUID> {
   /** Counts non-closed accounts for a customer to enforce the 5-account limit. */
   long countByCustomerIdAndStatusNot(String customerId, AccountStatus status);
 
-  /** Serialises account creation for one customer within the current transaction. */
+  /** Serializes account creation for one customer within the current transaction. */
   @Query(
       value =
           """

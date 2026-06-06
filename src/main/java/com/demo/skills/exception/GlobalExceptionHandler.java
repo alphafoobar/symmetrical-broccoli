@@ -1,5 +1,11 @@
 package com.demo.skills.exception;
 
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import static org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR;
+import static org.springframework.http.HttpStatus.NOT_FOUND;
+import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
+import static org.springframework.http.HttpStatus.UNPROCESSABLE_CONTENT;
+
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
@@ -7,7 +13,6 @@ import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.springframework.dao.DataAccessException;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -21,7 +26,7 @@ public class GlobalExceptionHandler {
 
   /** Handles account creation limit exceeded (422). */
   @ExceptionHandler(AccountLimitExceededException.class)
-  @ResponseStatus(HttpStatus.UNPROCESSABLE_ENTITY)
+  @ResponseStatus(UNPROCESSABLE_CONTENT)
   ProblemDetail handleAccountLimitExceeded(
       final AccountLimitExceededException ex, final HttpServletRequest request) {
     log.atWarn()
@@ -31,7 +36,7 @@ public class GlobalExceptionHandler {
         .log("Account limit exceeded");
 
     val problem =
-        ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
+        ProblemDetail.forStatusAndDetail(UNPROCESSABLE_CONTENT, ex.getMessage());
     problem.setTitle("Account Limit Exceeded");
     problem.setType(URI.create("https://errors.demo.com/account-limit-exceeded"));
     problem.setProperty("customerId", ex.customerId());
@@ -40,7 +45,7 @@ public class GlobalExceptionHandler {
 
   /** Handles nickname profanity violation (422). */
   @ExceptionHandler(NicknameNotAllowedException.class)
-  @ResponseStatus(HttpStatus.UNPROCESSABLE_ENTITY)
+  @ResponseStatus(UNPROCESSABLE_CONTENT)
   ProblemDetail handleNicknameNotAllowed(
       final NicknameNotAllowedException ex, final HttpServletRequest request) {
     log.atWarn()
@@ -49,15 +54,15 @@ public class GlobalExceptionHandler {
         .log("Nickname not allowed");
 
     val problem =
-        ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
+        ProblemDetail.forStatusAndDetail(UNPROCESSABLE_CONTENT, ex.getMessage());
     problem.setTitle("Nickname Not Allowed");
     problem.setType(URI.create("https://errors.demo.com/nickname-not-allowed"));
     return problem;
   }
 
-  /** Handles account not found (404). */
+  /** Handles `account not found` (404). */
   @ExceptionHandler(AccountNotFoundException.class)
-  @ResponseStatus(HttpStatus.NOT_FOUND)
+  @ResponseStatus(NOT_FOUND)
   ProblemDetail handleAccountNotFound(
       final AccountNotFoundException ex, final HttpServletRequest request) {
     log.atWarn()
@@ -66,7 +71,7 @@ public class GlobalExceptionHandler {
         .addKeyValue("accountId", ex.accountId())
         .log("Account not found");
 
-    val problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+    val problem = ProblemDetail.forStatusAndDetail(NOT_FOUND, ex.getMessage());
     problem.setTitle("Account Not Found");
     problem.setType(URI.create("https://errors.demo.com/account-not-found"));
     problem.setProperty("accountId", ex.accountId());
@@ -75,7 +80,7 @@ public class GlobalExceptionHandler {
 
   /** Handles Bean Validation failures (400). */
   @ExceptionHandler(MethodArgumentNotValidException.class)
-  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  @ResponseStatus(BAD_REQUEST)
   ProblemDetail handleValidation(
       final MethodArgumentNotValidException ex, final HttpServletRequest request) {
     log.atWarn()
@@ -94,7 +99,7 @@ public class GlobalExceptionHandler {
                         fe.getDefaultMessage() != null ? fe.getDefaultMessage() : "invalid"))
             .toList();
 
-    val problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Validation failed");
+    val problem = ProblemDetail.forStatusAndDetail(BAD_REQUEST, "Validation failed");
     problem.setTitle("Validation Error");
     problem.setType(URI.create("https://errors.demo.com/validation-error"));
     problem.setProperty("violations", violations);
@@ -103,7 +108,7 @@ public class GlobalExceptionHandler {
 
   /** Handles circuit-breaker open state — database unavailable (503). */
   @ExceptionHandler(CallNotPermittedException.class)
-  @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
+  @ResponseStatus(SERVICE_UNAVAILABLE)
   ProblemDetail handleCircuitBreakerOpen(
       final CallNotPermittedException ex, final HttpServletRequest request) {
     log.atError()
@@ -113,7 +118,7 @@ public class GlobalExceptionHandler {
 
     val problem =
         ProblemDetail.forStatusAndDetail(
-            HttpStatus.SERVICE_UNAVAILABLE, "Service temporarily unavailable, please try again");
+            SERVICE_UNAVAILABLE, "Service temporarily unavailable, please try again");
     problem.setTitle("Service Unavailable");
     problem.setType(URI.create("https://errors.demo.com/service-unavailable"));
     return problem;
@@ -121,7 +126,7 @@ public class GlobalExceptionHandler {
 
   /** Handles direct database failures before the circuit breaker opens (503). */
   @ExceptionHandler(DataAccessException.class)
-  @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
+  @ResponseStatus(SERVICE_UNAVAILABLE)
   ProblemDetail handleDatabaseFailure(
       final DataAccessException ex, final HttpServletRequest request) {
     log.atError()
@@ -131,7 +136,7 @@ public class GlobalExceptionHandler {
 
     val problem =
         ProblemDetail.forStatusAndDetail(
-            HttpStatus.SERVICE_UNAVAILABLE, "Database temporarily unavailable, please try again");
+            SERVICE_UNAVAILABLE, "Database temporarily unavailable, please try again");
     problem.setTitle("Service Unavailable");
     problem.setType(URI.create("https://errors.demo.com/database-unavailable"));
     return problem;
@@ -139,7 +144,7 @@ public class GlobalExceptionHandler {
 
   /** Handles unexpected request failures (500). */
   @ExceptionHandler(Exception.class)
-  @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+  @ResponseStatus(INTERNAL_SERVER_ERROR)
   ProblemDetail handleUnexpected(final Exception ex, final HttpServletRequest request) {
     log.atError()
         .setCause(ex)
@@ -149,7 +154,7 @@ public class GlobalExceptionHandler {
 
     val problem =
         ProblemDetail.forStatusAndDetail(
-            HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected server error");
+            INTERNAL_SERVER_ERROR, "Unexpected server error");
     problem.setTitle("Internal Server Error");
     problem.setType(URI.create("https://errors.demo.com/internal-server-error"));
     return problem;

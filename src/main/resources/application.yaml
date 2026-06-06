@@ -2,9 +2,9 @@ spring:
   application:
     name: skills
   datasource:
-    url: jdbc:postgresql://localhost:5432/skills
-    username: skills
-    password: skills
+    url: ${JDBC_DATABASE_URL:jdbc:postgresql://localhost:5432/skills}
+    username: ${JDBC_DATABASE_USERNAME:skills}
+    password: ${JDBC_DATABASE_PASSWORD:skills}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
@@ -18,13 +18,16 @@ spring:
     locations: classpath:db/migration
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      ssl:
+        enabled: ${REDIS_SSL_ENABLED:false}
   security:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: http://localhost:9000
+          issuer-uri: ${JWT_ISSUER_URI:http://localhost:9000/default}
+          jwk-set-uri: ${JWT_JWK_SET_URI:http://localhost:9000/default/jwks}
   cache:
     type: redis
     redis:
@@ -48,3 +51,5 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+      probes:
+        enabled: true

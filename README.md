@@ -8,7 +8,7 @@ local/manual testing.
 - Docker with Docker Compose
 - Java 25, if running the application from the host
 - OpenTofu or Terraform, if deploying AWS infrastructure
-- AWS CLI with credentials for the target account, if deploying to AWS
+- AWS CLI with a `projects` profile for the target account, if deploying to AWS
 
 This repository uses OpenTofu-compatible Terraform files under `infra/`. The
 commands below use `tofu`; replace `tofu` with `terraform` if that is the tool
@@ -134,60 +134,39 @@ so browser calls stay same-origin.
 The AWS infrastructure in `infra/` provisions:
 
 - VPC with public and private subnets
+- ECR repository for the Spring Boot API image
 - Application Load Balancer
 - ECS Fargate service for the Spring Boot API
-- Aurora PostgreSQL
+- ECS Fargate service for the mock OAuth2 issuer
+- Aurora Serverless v2 PostgreSQL
 - ElastiCache for Valkey
 - CloudWatch logs
-- S3 bucket and CloudFront distribution for static frontend assets
+- S3 bucket and CloudFront distribution for static frontend assets, API calls,
+  and mock OAuth2 calls
 
 Required deployment inputs:
 
 - `environment`: deployment environment name, for example `dev`
-- `image_uri`: ECR image URI for the API container
 
 Optional inputs have defaults in `infra/variables.tf`, including
-`aws_region = "ap-southeast-2"`, `project = "skills"`, and `db_name = "skills"`.
+`aws_profile = "projects"`, `aws_region = "ap-southeast-6"` (Auckland),
+`project = "skills"`, `db_name = "skills"`, `ecr_repository_name =
+"skills-api"`, `mock_oauth2_image`, and `image_tag`, which defaults to the
+environment name.
 
-### 1. Build And Push The API Image
+The API load balancer serves HTTP by default. Set `api_certificate_arn` to an
+ACM certificate ARN to enable HTTPS on port `443`.
 
-Set deployment variables:
+### 1. Create Deployment Variables
+
+Set common shell variables:
 
 ```sh
-export AWS_REGION=ap-southeast-2
+export AWS_PROFILE=projects
+export AWS_REGION=ap-southeast-6
 export ENVIRONMENT=dev
-export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 export ECR_REPOSITORY=skills-api
-export IMAGE_TAG="$ENVIRONMENT"
-export IMAGE_URI="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY:$IMAGE_TAG"
 ```
-
-Create the ECR repository if it does not already exist:
-
-```sh
-aws ecr describe-repositories \
-  --region "$AWS_REGION" \
-  --repository-names "$ECR_REPOSITORY" >/dev/null 2>&1 ||
-aws ecr create-repository \
-  --region "$AWS_REGION" \
-  --repository-name "$ECR_REPOSITORY"
-```
-
-Build and push the image:
-
-```sh
-docker build -t "$ECR_REPOSITORY:$IMAGE_TAG" .
-
-aws ecr get-login-password --region "$AWS_REGION" |
-  docker login \
-    --username AWS \
-    --password-stdin "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
-
-docker tag "$ECR_REPOSITORY:$IMAGE_TAG" "$IMAGE_URI"
-docker push "$IMAGE_URI"
-```
-
-### 2. Plan And Apply Infrastructure
 
 Create an environment tfvars file. Do not commit environment tfvars files if
 they contain account-specific or sensitive values.
@@ -195,16 +174,51 @@ they contain account-specific or sensitive values.
 ```sh
 cat > infra/dev.tfvars <<EOF
 environment = "dev"
-aws_region  = "ap-southeast-2"
-image_uri   = "$IMAGE_URI"
+aws_profile = "projects"
+aws_region  = "ap-southeast-6"
 EOF
 ```
+
+### 2. Create ECR
+
+Initialize OpenTofu and create the ECR repository first. This lets Docker push
+the image before the ECS service is created.
+
+```sh
+cd infra
+tofu init
+tofu apply \
+  -target=aws_ecr_repository.api \
+  -target=aws_ecr_lifecycle_policy.api \
+  -var-file=dev.tfvars
+cd ..
+
+export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+export ECR_REPOSITORY_URL="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY"
+export IMAGE_URI="$ECR_REPOSITORY_URL:$ENVIRONMENT"
+```
+
+### 3. Build And Push The API Image
+
+Build and push the image:
+
+```sh
+docker build -t "$IMAGE_URI" .
+
+aws ecr get-login-password --region "$AWS_REGION" |
+  docker login \
+    --username AWS \
+    --password-stdin "$ECR_REPOSITORY_URL"
+
+docker push "$IMAGE_URI"
+```
+
+### 4. Plan And Apply Infrastructure
 
 Initialize, validate, and plan:
 
 ```sh
 cd infra
-tofu init
 tofu fmt -check
 tofu validate
 tofu plan -var-file=dev.tfvars
@@ -223,7 +237,12 @@ tofu output api_url
 tofu output frontend_url
 ```
 
-### 3. Upload Frontend Assets
+The API service receives `JDBC_DATABASE_*`, `REDIS_*`, `JWT_ISSUER_URI`, and
+`JWT_JWK_SET_URI` from the ECS task definition. In AWS those values point at
+Aurora Serverless v2, ElastiCache Valkey with TLS, and the mock OAuth2 service
+behind the ALB.
+
+### 5. Upload Frontend Assets
 
 After the infrastructure exists, sync the static UI to the frontend bucket:
 
@@ -231,12 +250,11 @@ After the infrastructure exists, sync the static UI to the frontend bucket:
 aws s3 sync ../public "s3://$(tofu output -raw s3_bucket_name)" --delete
 ```
 
-CloudFront may take a few minutes to serve updated files. The current frontend
-is designed for the local same-origin nginx proxy and calls `/api/v1`; deployed
-frontend/API routing may need a CloudFront API origin or an API base URL change
-before the hosted UI can call the ALB-backed API directly.
+CloudFront may take a few minutes to serve updated files. The hosted frontend
+keeps the same paths as local Docker Compose: `/api/*` forwards to the API and
+`/default/*` forwards to the mock OAuth2 issuer.
 
-### 4. Destroy A Non-Production Environment
+### 6. Destroy A Non-Production Environment
 
 Use this only for disposable environments:
 
@@ -247,3 +265,22 @@ tofu destroy -var-file=dev.tfvars
 
 RDS has deletion protection enabled, so database teardown requires explicitly
 changing that setting before destroy can complete.
+
+### Useful AWS Commands
+
+Check which account the `projects` profile points at:
+
+```sh
+aws sts get-caller-identity --profile projects
+```
+
+Force a new ECS deployment after pushing a replacement image with the same tag:
+
+```sh
+aws ecs update-service \
+  --profile projects \
+  --region "$AWS_REGION" \
+  --cluster "$(tofu -chdir=infra output -raw cluster_name)" \
+  --service "$(tofu -chdir=infra output -raw service_name)" \
+  --force-new-deployment
+```

@@ -54,13 +54,13 @@ services:
     build:
       context: .
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/skills
-      SPRING_DATASOURCE_USERNAME: skills
-      SPRING_DATASOURCE_PASSWORD: skills
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: 6379
-      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://localhost:9000/default
-      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://auth:8080/default/jwks
+      JDBC_DATABASE_URL: jdbc:postgresql://postgres:5432/skills
+      JDBC_DATABASE_USERNAME: skills
+      JDBC_DATABASE_PASSWORD: skills
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_ISSUER_URI: http://localhost:9000/default
+      JWT_JWK_SET_URI: http://auth:8080/default/jwks
     depends_on:
       postgres:
         condition: service_healthy

@@ -28,6 +28,8 @@ out/
 
 ### OpenTofu / Terraform ###
 **/.terraform/
+*.tfvars
+*.tfvars.json
 
 ### NetBeans ###
 /nbproject/private/

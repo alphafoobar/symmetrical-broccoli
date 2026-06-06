@@ -45,6 +45,6 @@ public class AccountNumberGenerator {
     return new AccountNumberAllocation(current.getAccountNumber(), "%02d".formatted(nextSuffix));
   }
 
-  /** Holds the base account number and sub-account suffix for a new account. */
+  /** Holds the base account number and subaccount suffix for a new account. */
   public record AccountNumberAllocation(String accountNumber, String suffix) {}
 }
