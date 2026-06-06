@@ -117,11 +117,16 @@
 
     function renderResult(elementId, data, isError) {
       const el = document.getElementById(elementId);
+      el.replaceChildren();
       if (!data) {
-        el.innerHTML = '';
         return;
       }
-      el.innerHTML = `<pre class="${isError ? 'error' : ''}">${JSON.stringify(data, null, 2)}</pre>`;
+      const pre = document.createElement('pre');
+      if (isError) {
+        pre.classList.add('error');
+      }
+      pre.textContent = JSON.stringify(data, null, 2);
+      el.appendChild(pre);
     }
 
     async function parseResponse(resp) {
