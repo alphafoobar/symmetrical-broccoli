@@ -15,12 +15,12 @@ paths:
       summary: Get API health
       security: []
       responses:
-        '200':
+        "200":
           description: API is healthy
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HealthResponse'
+                $ref: "#/components/schemas/HealthResponse"
   /accounts:
     post:
       tags:
@@ -33,34 +33,34 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateAccountRequest'
+              $ref: "#/components/schemas/CreateAccountRequest"
       responses:
-        '201':
+        "201":
           description: Account created successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AccountResponse'
-        '400':
+                $ref: "#/components/schemas/AccountResponse"
+        "400":
           description: Validation error
           content:
             application/problem+json:
               schema:
-                $ref: '#/components/schemas/ProblemDetail'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '422':
+                $ref: "#/components/schemas/ProblemDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
           description: Business rule violation
           content:
             application/problem+json:
               schema:
-                $ref: '#/components/schemas/ProblemDetail'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
+                $ref: "#/components/schemas/ProblemDetail"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
     get:
       tags:
         - Accounts
@@ -68,20 +68,20 @@ paths:
       summary: List all accounts for the authenticated customer
       description: Requires the `customer.account.my` scope.
       responses:
-        '200':
+        "200":
           description: List of accounts for the authenticated customer
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AccountListResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
+                $ref: "#/components/schemas/AccountListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
   /accounts/{accountId}:
     get:
       tags:
@@ -97,26 +97,26 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: Account found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AccountResponse'
-        '404':
+                $ref: "#/components/schemas/AccountResponse"
+        "404":
           description: Account not found
           content:
             application/problem+json:
               schema:
-                $ref: '#/components/schemas/ProblemDetail'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
+                $ref: "#/components/schemas/ProblemDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
 components:
   securitySchemes:
     bearerAuth:
@@ -129,25 +129,25 @@ components:
       content:
         application/problem+json:
           schema:
-            $ref: '#/components/schemas/ProblemDetail'
+            $ref: "#/components/schemas/ProblemDetail"
     Forbidden:
       description: Missing required customer account scope
       content:
         application/problem+json:
           schema:
-            $ref: '#/components/schemas/ProblemDetail'
+            $ref: "#/components/schemas/ProblemDetail"
     InternalServerError:
       description: Unexpected server error
       content:
         application/problem+json:
           schema:
-            $ref: '#/components/schemas/ProblemDetail'
+            $ref: "#/components/schemas/ProblemDetail"
     ServiceUnavailable:
       description: Database or dependent service temporarily unavailable
       content:
         application/problem+json:
           schema:
-            $ref: '#/components/schemas/ProblemDetail'
+            $ref: "#/components/schemas/ProblemDetail"
   schemas:
     HealthResponse:
       type: object
@@ -210,7 +210,7 @@ components:
           type: string
           nullable: true
         status:
-          $ref: '#/components/schemas/AccountStatus'
+          $ref: "#/components/schemas/AccountStatus"
         createdAt:
           type: string
           format: date-time
@@ -223,7 +223,7 @@ components:
         accounts:
           type: array
           items:
-            $ref: '#/components/schemas/AccountResponse'
+            $ref: "#/components/schemas/AccountResponse"
     ProblemDetail:
       type: object
       properties:
