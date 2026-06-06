@@ -26,6 +26,9 @@ out/
 !**/src/main/**/out/
 !**/src/test/**/out/
 
+### OpenTofu / Terraform ###
+**/.terraform/
+
 ### NetBeans ###
 /nbproject/private/
 /nbbuild/
@@ -35,3 +38,4 @@ out/
 
 ### VS Code ###
 .vscode/
+/infra/.terraform.lock.hcl

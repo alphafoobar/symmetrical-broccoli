@@ -1,9 +1,11 @@
+import java.math.BigDecimal
 import net.ltgt.gradle.errorprone.errorprone
 import net.ltgt.gradle.nullaway.nullaway
 
 plugins {
 	java
 	checkstyle
+	jacoco
 	id("org.springframework.boot") version "4.0.6"
 	id("io.spring.dependency-management") version "1.1.7"
 	id("net.ltgt.errorprone") version "5.1.0"
@@ -25,6 +27,7 @@ repositories {
 }
 
 extra["springCloudVersion"] = "2025.1.1"
+extra["testcontainersVersion"] = "2.0.5"
 
 dependencies {
 	compileOnly("org.jspecify:jspecify:1.0.0")
@@ -40,13 +43,19 @@ dependencies {
 	implementation("org.springframework.cloud:spring-cloud-starter-circuitbreaker-resilience4j")
 	
 	compileOnly("org.projectlombok:lombok")
+	implementation("org.springframework.boot:spring-boot-starter-data-redis")
+	implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
+	implementation("org.mapstruct:mapstruct:1.6.3")
 	runtimeOnly("io.micrometer:micrometer-registry-cloudwatch2")
 	runtimeOnly("org.postgresql:postgresql")
 	annotationProcessor("org.projectlombok:lombok")
+	annotationProcessor("org.mapstruct:mapstruct-processor:1.6.3")
+	annotationProcessor("org.projectlombok:lombok-mapstruct-binding:0.2.0")
 
 	errorprone("com.google.errorprone:error_prone_core:2.49.0")
 	errorprone("com.uber.nullaway:nullaway:0.13.4")
 
+	testImplementation(platform("org.testcontainers:testcontainers-bom:${property("testcontainersVersion")}"))
 	testImplementation("com.tngtech.archunit:archunit-junit5:1.4.2")
 	testImplementation("org.projectlombok:lombok")
 	testImplementation("org.springframework.boot:spring-boot-micrometer-tracing-test")
@@ -55,14 +64,20 @@ dependencies {
 	testImplementation("org.springframework.boot:spring-boot-starter-flyway-test")
 	testImplementation("org.springframework.boot:spring-boot-starter-security-test")
 	testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
+	testImplementation("org.springframework.boot:spring-boot-testcontainers")
+	testImplementation("org.testcontainers:testcontainers-postgresql:${property("testcontainersVersion")}")
+	testImplementation("org.testcontainers:testcontainers-junit-jupiter:${property("testcontainersVersion")}")
 	testCompileOnly("org.projectlombok:lombok")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 	testAnnotationProcessor("org.projectlombok:lombok")
+	testAnnotationProcessor("org.mapstruct:mapstruct-processor:1.6.3")
+	testAnnotationProcessor("org.projectlombok:lombok-mapstruct-binding:0.2.0")
 }
 
 dependencyManagement {
 	imports {
 		mavenBom("org.springframework.cloud:spring-cloud-dependencies:${property("springCloudVersion")}")
+		mavenBom("org.testcontainers:testcontainers-bom:${property("testcontainersVersion")}")
 	}
 }
 
@@ -73,6 +88,10 @@ checkstyle {
 		"google_checks.xml",
 	)
 	maxWarnings = 0
+}
+
+jacoco {
+	toolVersion = "0.8.14"
 }
 
 openApiGenerate {
@@ -106,12 +125,15 @@ sourceSets {
 	}
 }
 
+val generatedOpenApiSources = layout.buildDirectory.dir("generated/openapi/src/main/java")
+
 nullaway {
 	onlyNullMarked = true
 	jspecifyMode = true
 }
 
 tasks.withType<JavaCompile>().configureEach {
+	options.errorprone.excludedPaths.set(".*/build/generated/.*")
 	options.errorprone.nullaway {
 		error()
 		checkOptionalEmptiness.set(true)
@@ -120,9 +142,13 @@ tasks.withType<JavaCompile>().configureEach {
 }
 
 tasks.withType<Checkstyle>().configureEach {
-	exclude("**/build/generated/**")
-	exclude("**/generated/openapi/**")
-	exclude("com/demo/skills/api/**")
+	// Exclude OpenAPI Generator output; the contract is validated by openApiValidate,
+	// and generated code does not consistently follow this repo's Checkstyle rules.
+	val generatedOpenApiPath = generatedOpenApiSources.get().asFile.toPath()
+	source =
+		source.matching {
+			exclude { element -> element.file.toPath().startsWith(generatedOpenApiPath) }
+		}
 }
 
 tasks.named("compileJava") {
@@ -130,9 +156,54 @@ tasks.named("compileJava") {
 }
 
 tasks.named("check") {
-	dependsOn(tasks.named("openApiValidate"))
+	dependsOn(
+		tasks.named("openApiValidate"),
+		tasks.named("jacocoTestReport"),
+		tasks.named("jacocoTestCoverageVerification"),
+	)
 }
 
 tasks.withType<Test> {
 	useJUnitPlatform()
+}
+
+tasks.jacocoTestReport {
+	dependsOn(tasks.test)
+
+	reports {
+		xml.required.set(true)
+		html.required.set(true)
+	}
+
+	classDirectories.setFrom(
+		files(
+			classDirectories.files.map {
+				fileTree(it) {
+					exclude("com/demo/skills/api/**")
+				}
+			},
+		),
+	)
+}
+
+tasks.jacocoTestCoverageVerification {
+	dependsOn(tasks.test)
+
+	classDirectories.setFrom(
+		files(
+			classDirectories.files.map {
+				fileTree(it) {
+					exclude("com/demo/skills/api/**")
+				}
+			},
+		),
+	)
+
+	violationRules {
+		rule {
+			limit {
+				minimum = BigDecimal("0.80")
+			}
+		}
+	}
 }

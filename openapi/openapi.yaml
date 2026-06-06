@@ -21,12 +21,133 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
+  /accounts:
+    post:
+      tags:
+        - Accounts
+      operationId: createAccount
+      summary: Create a new savings account
+      description: Requires the `customer.account.my` scope.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAccountRequest'
+      responses:
+        '201':
+          description: Account created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountResponse'
+        '400':
+          description: Validation error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          description: Business rule violation
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    get:
+      tags:
+        - Accounts
+      operationId: listAccounts
+      summary: List all accounts for the authenticated customer
+      description: Requires the `customer.account.my` scope.
+      responses:
+        '200':
+          description: List of accounts for the authenticated customer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /accounts/{accountId}:
+    get:
+      tags:
+        - Accounts
+      operationId: getAccount
+      summary: Get a savings account by ID
+      description: Requires the `customer.account.my` scope.
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Account found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountResponse'
+        '404':
+          description: Account not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+  responses:
+    Unauthorized:
+      description: Missing or invalid bearer token
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+    Forbidden:
+      description: Missing required customer account scope
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+    InternalServerError:
+      description: Unexpected server error
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+    ServiceUnavailable:
+      description: Database or dependent service temporarily unavailable
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
   schemas:
     HealthResponse:
       type: object
@@ -37,3 +158,82 @@ components:
         status:
           type: string
           example: UP
+    CreateAccountRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - customerName
+      properties:
+        customerName:
+          type: string
+          minLength: 1
+          maxLength: 250
+          description: Full name of the customer
+        nickName:
+          type: string
+          minLength: 5
+          maxLength: 30
+          description: Optional account nickname (must not contain offensive language)
+    AccountStatus:
+      type: string
+      enum:
+        - ACTIVE
+        - INACTIVE
+        - FROZEN
+        - CLOSED
+    AccountResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - accountId
+        - accountNumber
+        - customerId
+        - customerName
+        - status
+        - createdAt
+      properties:
+        accountId:
+          type: string
+          format: uuid
+        accountNumber:
+          type: string
+          description: Full NZ bank account number (bank branch account suffix)
+          example: "03 1509 0000001 00"
+        customerId:
+          type: string
+          description: Customer identifier from JWT subject claim
+        customerName:
+          type: string
+        nickName:
+          type: string
+          nullable: true
+        status:
+          $ref: '#/components/schemas/AccountStatus'
+        createdAt:
+          type: string
+          format: date-time
+    AccountListResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - accounts
+      properties:
+        accounts:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccountResponse'
+    ProblemDetail:
+      type: object
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri
