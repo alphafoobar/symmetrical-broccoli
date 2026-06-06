@@ -166,6 +166,17 @@ class AccountApiIntegrationTest {
     assertThat(listResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(listResponse.getBody()).isNotNull();
     assertThat(listResponse.getBody().getAccounts()).isNotEmpty();
+
+    val cachedListResponse =
+        restTemplate.exchange(
+            "/api/v1/accounts",
+            HttpMethod.GET,
+            new HttpEntity<>(bearerHeaders()),
+            AccountListResponse.class);
+
+    assertThat(cachedListResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(cachedListResponse.getBody()).isNotNull();
+    assertThat(cachedListResponse.getBody().getAccounts()).isNotEmpty();
   }
 
   @Test

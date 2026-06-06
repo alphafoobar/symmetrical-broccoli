@@ -1,6 +1,8 @@
 spring:
   application:
     name: skills
+  jackson:
+    default-property-inclusion: non_null
   threads:
     virtual:
       enabled: true
@@ -58,14 +60,13 @@ logging:
     console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level ${PID: } --- [%15.15t] [${spring.application.name}] [traceId=%X{traceId:-} spanId=%X{spanId:-}] %logger{36} : %msg %kvp%n"
 
 resilience4j:
-  circuitbreaker:
+  retry:
     instances:
       database:
-        sliding-window-size: 10
-        failure-rate-threshold: 50
-        wait-duration-in-open-state: 30s
-        permitted-number-of-calls-in-half-open-state: 3
-        register-health-indicator: true
+        max-attempts: 3
+        wait-duration: 100ms
+        retry-exceptions:
+          - org.springframework.dao.DataAccessException
 
 management:
   endpoints:

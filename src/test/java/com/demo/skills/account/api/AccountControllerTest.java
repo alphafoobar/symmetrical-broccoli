@@ -80,7 +80,8 @@ class AccountControllerTest {
                           Map.of("customerName", "Alice Smith"))))
           .andExpect(status().isCreated())
           .andExpect(jsonPath("$.accountNumber").value("03 1509 0000001 00"))
-          .andExpect(jsonPath("$.customerId").value(CUSTOMER_ID));
+          .andExpect(jsonPath("$.customerId").value(CUSTOMER_ID))
+          .andExpect(jsonPath("$.nickname").doesNotExist());
     }
 
     @Test
@@ -300,7 +301,8 @@ class AccountControllerTest {
               get("/api/v1/accounts/{accountId}", accountId)
                   .with(accountJwt()))
           .andExpect(status().isOk())
-          .andExpect(jsonPath("$.accountId").value(accountId.toString()));
+          .andExpect(jsonPath("$.accountId").value(accountId.toString()))
+          .andExpect(jsonPath("$.nickname").doesNotExist());
     }
 
     @Test
@@ -357,7 +359,8 @@ class AccountControllerTest {
               get("/api/v1/accounts").with(accountJwt()))
           .andExpect(status().isOk())
           .andExpect(jsonPath("$.accounts").isArray())
-          .andExpect(jsonPath("$.accounts.length()").value(1));
+          .andExpect(jsonPath("$.accounts.length()").value(1))
+          .andExpect(jsonPath("$.accounts[0].nickname").doesNotExist());
     }
 
     @Test

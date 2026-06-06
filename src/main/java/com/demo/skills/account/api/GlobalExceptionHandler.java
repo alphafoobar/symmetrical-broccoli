@@ -9,7 +9,6 @@ import static org.springframework.http.HttpStatus.UNPROCESSABLE_CONTENT;
 import com.demo.skills.exception.AccountLimitExceededException;
 import com.demo.skills.exception.AccountNotFoundException;
 import com.demo.skills.exception.NicknameNotAllowedException;
-import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import java.util.Map;
@@ -108,25 +107,7 @@ public class GlobalExceptionHandler {
     return problem;
   }
 
-  /** Handles circuit-breaker open state — database unavailable (503). */
-  @ExceptionHandler(CallNotPermittedException.class)
-  @ResponseStatus(SERVICE_UNAVAILABLE)
-  ProblemDetail handleCircuitBreakerOpen(
-      final CallNotPermittedException ex, final HttpServletRequest request) {
-    log.atError()
-        .setCause(ex)
-        .addKeyValue("path", request.getRequestURI())
-        .log("Circuit breaker open - service temporarily unavailable");
-
-    val problem =
-        ProblemDetail.forStatusAndDetail(
-            SERVICE_UNAVAILABLE, "Service temporarily unavailable, please try again");
-    problem.setTitle("Service Unavailable");
-    problem.setType(URI.create("https://errors.demo.com/service-unavailable"));
-    return problem;
-  }
-
-  /** Handles direct database failures before the circuit breaker opens (503). */
+  /** Handles database failures after retry attempts are exhausted (503). */
   @ExceptionHandler(DataAccessException.class)
   @ResponseStatus(SERVICE_UNAVAILABLE)
   ProblemDetail handleDatabaseFailure(
