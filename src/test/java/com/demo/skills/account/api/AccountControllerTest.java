@@ -1,5 +1,6 @@
 package com.demo.skills.account.api;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -127,7 +128,13 @@ class AccountControllerTest {
                   .content(
                       objectMapper.writeValueAsString(Map.of("customerName", "Alice Smith"))))
           .andExpect(status().isUnprocessableContent())
-          .andExpect(jsonPath("$.type").value("https://errors.demo.com/account-limit-exceeded"));
+          .andExpect(jsonPath("$.type").value("https://errors.demo.com/account-limit-exceeded"))
+          .andExpect(jsonPath("$.detail").value("Maximum account limit reached"))
+          .andExpect(jsonPath("$.customerId").doesNotExist())
+          .andExpect(
+              result ->
+                  assertThat(result.getResponse().getContentAsString())
+                      .doesNotContain(CUSTOMER_ID));
     }
 
     @Test

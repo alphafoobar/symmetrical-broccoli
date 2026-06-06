@@ -144,6 +144,19 @@ The AWS infrastructure in `infra/` provisions:
 - S3 bucket and CloudFront distribution for static frontend assets, API calls,
   and mock OAuth2 calls
 
+Deployment scripts are available from the repository root:
+
+```sh
+./deploy-api.sh dev
+./deploy-ui.sh dev
+```
+
+The scripts default to `infra/<environment>.tfvars`, `tofu`, the AWS profile and
+region from the tfvars file. API images are built for `linux/amd64` and tagged
+with `<environment>-<UTC timestamp>` by default so ECS points at a specific
+immutable artifact. Set `IMAGE_TAG` only when you need a custom, unused tag.
+Set `AUTO_APPROVE=true` for non-interactive OpenTofu applies.
+
 Required deployment inputs:
 
 - `environment`: deployment environment name, for example `dev`
@@ -151,8 +164,7 @@ Required deployment inputs:
 Optional inputs have defaults in `infra/variables.tf`, including
 `aws_profile = "projects"`, `aws_region = "ap-southeast-6"` (Auckland),
 `project = "skills"`, `db_name = "skills"`, `ecr_repository_name =
-"skills-api"`, `mock_oauth2_image`, and `image_tag`, which defaults to the
-environment name.
+"skills-api"`, `mock_oauth2_image`, and `image_tag`.
 
 The API load balancer serves HTTP by default. Set `api_certificate_arn` to an
 ACM certificate ARN to enable HTTPS on port `443`.
@@ -195,7 +207,8 @@ cd ..
 
 export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 export ECR_REPOSITORY_URL="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY"
-export IMAGE_URI="$ECR_REPOSITORY_URL:$ENVIRONMENT"
+export IMAGE_TAG="$ENVIRONMENT-$(date -u +%Y%m%dT%H%M%SZ)"
+export IMAGE_URI="$ECR_REPOSITORY_URL:$IMAGE_TAG"
 ```
 
 ### 3. Build And Push The API Image
@@ -203,7 +216,7 @@ export IMAGE_URI="$ECR_REPOSITORY_URL:$ENVIRONMENT"
 Build and push the image:
 
 ```sh
-docker build -t "$IMAGE_URI" .
+docker build --platform linux/amd64 -t "$IMAGE_URI" .
 
 aws ecr get-login-password --region "$AWS_REGION" |
   docker login \
@@ -237,10 +250,33 @@ tofu output api_url
 tofu output frontend_url
 ```
 
-The API service receives `JDBC_DATABASE_*`, `REDIS_*`, `JWT_ISSUER_URI`, and
-`JWT_JWK_SET_URI` from the ECS task definition. In AWS those values point at
-Aurora Serverless v2, ElastiCache Valkey with TLS, and the mock OAuth2 service
-behind the ALB.
+OpenTofu creates a separate Secrets Manager secret for the low-privilege
+application database user. The initial password is generated through AWS Secrets
+Manager and stored in the remote OpenTofu state, so treat state access as
+privileged and keep the backend encrypted and access-controlled.
+
+To rotate the application database password later, update Secrets Manager and
+then alter the PostgreSQL role through an admin connection:
+
+```sh
+APP_DB_SECRET_ARN="$(tofu output -raw db_app_secret_arn)"
+APP_DB_PASSWORD="$(aws secretsmanager get-random-password \
+  --password-length 48 \
+  --exclude-punctuation \
+  --query RandomPassword \
+  --output text)"
+
+aws secretsmanager put-secret-value \
+  --secret-id "$APP_DB_SECRET_ARN" \
+  --secret-string "{\"username\":\"skills_app\",\"password\":\"$APP_DB_PASSWORD\"}"
+```
+
+The API service receives non-secret runtime config from the ECS task definition,
+including `JDBC_DATABASE_URL`, Redis endpoints, JWT issuer metadata, and
+`SPRING_CONFIG_IMPORT`. Spring Cloud AWS uses `SPRING_CONFIG_IMPORT` to read the
+application database secret and RDS master secret from Secrets Manager at
+startup. The normal datasource uses the low-privilege `skills_app` credentials;
+Flyway uses the imported RDS master credentials only for migrations and grants.
 
 ### 5. Upload Frontend Assets
 

@@ -15,7 +15,7 @@ ARG APP_UID=10001
 ARG APP_GID=10001
 
 ENV APP_HOME=/app \
-	JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/urandom"
+	JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/urandom --enable-native-access=ALL-UNNAMED"
 
 WORKDIR ${APP_HOME}
 

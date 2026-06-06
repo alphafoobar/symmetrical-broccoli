@@ -1,4 +1,4 @@
-package com.demo.skills.exception;
+package com.demo.skills.account.api;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR;
@@ -6,6 +6,9 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
 import static org.springframework.http.HttpStatus.UNPROCESSABLE_CONTENT;
 
+import com.demo.skills.exception.AccountLimitExceededException;
+import com.demo.skills.exception.AccountNotFoundException;
+import com.demo.skills.exception.NicknameNotAllowedException;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;

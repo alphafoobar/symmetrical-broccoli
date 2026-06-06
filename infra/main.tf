@@ -20,6 +20,7 @@ provider "aws" {
         managed-by  = "opentofu"
         gitRepo     = "https://github.com/alphafoobar/symmetrical-broccoli"
       },
+      // This is not such a great idea, since it causes OpenTofu to update all resources on every apply.
       var.updated_at != null ? { updatedAt = var.updated_at } : {}
     )
   }
@@ -35,4 +36,5 @@ locals {
   frontend_bucket_name  = var.frontend_bucket_name != null ? var.frontend_bucket_name : "${var.project}-${var.environment}-${data.aws_caller_identity.current.account_id}-frontend"
   mock_issuer_uri       = "${local.api_url_scheme}://${aws_lb.main.dns_name}/default"
   mock_jwk_set_uri      = "${local.mock_issuer_uri}/jwks"
+  db_app_username       = "skills_app"
 }

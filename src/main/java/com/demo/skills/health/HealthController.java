@@ -6,7 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Controller implementing the health-check endpoint. */
+/** Controller implementing the health check endpoint. */
 @RestController
 @RequestMapping("/api/v1")
 public class HealthController implements HealthApi {

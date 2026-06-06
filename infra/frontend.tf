@@ -48,7 +48,7 @@ resource "aws_cloudfront_distribution" "frontend" {
     allowed_methods        = ["GET", "HEAD"]
     cached_methods         = ["GET", "HEAD"]
     target_origin_id       = "s3-frontend"
-    viewer_protocol_policy = "redirect-to-https"
+    viewer_protocol_policy = "https-only"
 
     forwarded_values {
       query_string = false
@@ -68,7 +68,7 @@ resource "aws_cloudfront_distribution" "frontend" {
     allowed_methods        = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
     cached_methods         = ["GET", "HEAD", "OPTIONS"]
     target_origin_id       = "alb-api"
-    viewer_protocol_policy = "redirect-to-https"
+    viewer_protocol_policy = "https-only"
 
     forwarded_values {
       headers      = ["Authorization", "Content-Type"]
@@ -89,7 +89,7 @@ resource "aws_cloudfront_distribution" "frontend" {
     allowed_methods        = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
     cached_methods         = ["GET", "HEAD", "OPTIONS"]
     target_origin_id       = "alb-api"
-    viewer_protocol_policy = "redirect-to-https"
+    viewer_protocol_policy = "https-only"
 
     forwarded_values {
       headers      = ["Authorization", "Content-Type"]

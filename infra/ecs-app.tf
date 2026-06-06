@@ -67,22 +67,25 @@ resource "aws_iam_role_policy_attachment" "execution_policy" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-data "aws_iam_policy_document" "execution_secrets" {
+data "aws_iam_policy_document" "task_secrets" {
   statement {
-    effect    = "Allow"
-    actions   = ["secretsmanager:GetSecretValue"]
-    resources = [aws_rds_cluster.main.master_user_secret[0].secret_arn]
+    effect  = "Allow"
+    actions = ["secretsmanager:GetSecretValue"]
+    resources = [
+      aws_rds_cluster.main.master_user_secret[0].secret_arn,
+      aws_secretsmanager_secret.db_app_credentials.arn,
+    ]
   }
-}
-
-resource "aws_iam_role_policy" "execution_secrets" {
-  role   = aws_iam_role.execution.id
-  policy = data.aws_iam_policy_document.execution_secrets.json
 }
 
 resource "aws_iam_role" "task" {
   name               = "skills-${var.environment}-ecs-task"
   assume_role_policy = data.aws_iam_policy_document.ecs_assume.json
+}
+
+resource "aws_iam_role_policy" "task_secrets" {
+  role   = aws_iam_role.task.id
+  policy = data.aws_iam_policy_document.task_secrets.json
 }
 
 resource "aws_cloudwatch_log_group" "app" {
@@ -125,17 +128,15 @@ resource "aws_ecs_task_definition" "app" {
 
       environment = [
         { name = "SPRING_PROFILES_ACTIVE", value = var.environment },
+        { name = "SPRING_CLOUD_AWS_SECRETSMANAGER_ENABLED", value = "true" },
+        { name = "SPRING_CLOUD_AWS_REGION_STATIC", value = var.aws_region },
+        { name = "SPRING_CONFIG_IMPORT", value = "aws-secretsmanager:${aws_secretsmanager_secret.db_app_credentials.arn}?prefix=db.app.,aws-secretsmanager:${aws_rds_cluster.main.master_user_secret[0].secret_arn}?prefix=db.flyway." },
         { name = "JDBC_DATABASE_URL", value = "jdbc:postgresql://${aws_rds_cluster.main.endpoint}:${aws_rds_cluster.main.port}/${var.db_name}" },
         { name = "REDIS_HOST", value = aws_elasticache_replication_group.main.primary_endpoint_address },
         { name = "REDIS_PORT", value = tostring(var.redis_port) },
         { name = "REDIS_SSL_ENABLED", value = "true" },
         { name = "JWT_ISSUER_URI", value = local.mock_issuer_uri },
         { name = "JWT_JWK_SET_URI", value = local.mock_jwk_set_uri },
-      ]
-
-      secrets = [
-        { name = "JDBC_DATABASE_USERNAME", valueFrom = "${aws_rds_cluster.main.master_user_secret[0].secret_arn}:username::" },
-        { name = "JDBC_DATABASE_PASSWORD", valueFrom = "${aws_rds_cluster.main.master_user_secret[0].secret_arn}:password::" },
       ]
 
       logConfiguration = {
@@ -306,11 +307,12 @@ resource "aws_lb_listener_rule" "https_auth" {
 }
 
 resource "aws_ecs_service" "app" {
-  name            = "skills-${var.environment}"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.app.arn
-  desired_count   = var.desired_count
-  launch_type     = "FARGATE"
+  name                              = "skills-${var.environment}"
+  cluster                           = aws_ecs_cluster.main.id
+  task_definition                   = aws_ecs_task_definition.app.arn
+  desired_count                     = var.desired_count
+  launch_type                       = "FARGATE"
+  health_check_grace_period_seconds = 180
 
   network_configuration {
     subnets          = aws_subnet.private[*].id

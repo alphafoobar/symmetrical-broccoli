@@ -89,4 +89,42 @@ class ProjectConventionsTest {
               });
     }
   }
+
+  @Test
+  @DisplayName("does not log raw account numbers from production code")
+  void doesNotLogRawAccountNumbers() throws IOException {
+    try (val files = Files.walk(MAIN_JAVA)) {
+      val sourceFiles =
+          files
+              .filter(Files::isRegularFile)
+              .filter(path -> path.toString().endsWith(".java"))
+              .toList();
+
+      assertThat(sourceFiles)
+          .allSatisfy(
+              sourceFile ->
+                  assertThat(sourceFile)
+                      .content()
+                      .doesNotContain(".addKeyValue(\"accountNumber\""));
+    }
+  }
+
+  @Test
+  @DisplayName("does not expose customer IDs as ProblemDetail properties")
+  void doesNotExposeCustomerIdsAsProblemDetailProperties() throws IOException {
+    try (val files = Files.walk(MAIN_JAVA)) {
+      val sourceFiles =
+          files
+              .filter(Files::isRegularFile)
+              .filter(path -> path.toString().endsWith(".java"))
+              .toList();
+
+      assertThat(sourceFiles)
+          .allSatisfy(
+              sourceFile ->
+                  assertThat(sourceFile)
+                      .content()
+                      .doesNotContain(".setProperty(\"customerId\""));
+    }
+  }
 }

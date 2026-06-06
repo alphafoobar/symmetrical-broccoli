@@ -82,7 +82,7 @@ variable "desired_count" {
 }
 
 variable "api_certificate_arn" {
-  description = "Optional DNS-validated ACM certificate ARN for HTTPS on the API load balancer. Required when CloudFront connects to the ALB over HTTPS; when omitted, the ALB serves HTTP."
+  description = "Optional DNS-validated ACM certificate ARN for HTTPS on the API load balancer. When omitted, the ALB serves HTTP and CloudFront uses HTTP origin traffic."
   type        = string
   default     = null
 }

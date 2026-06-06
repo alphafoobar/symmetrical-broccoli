@@ -58,3 +58,29 @@ resource "aws_rds_cluster_instance" "main" {
   engine             = aws_rds_cluster.main.engine
   engine_version     = aws_rds_cluster.main.engine_version
 }
+
+resource "aws_secretsmanager_secret" "db_app_credentials" {
+  name        = "skills/${var.environment}/database/app"
+  description = "Runtime PostgreSQL credentials for the Skills API application user"
+}
+
+data "aws_secretsmanager_random_password" "db_app_credentials" {
+  password_length            = 48
+  exclude_punctuation        = true
+  require_each_included_type = true
+}
+
+resource "aws_secretsmanager_secret_version" "db_app_credentials" {
+  secret_id = aws_secretsmanager_secret.db_app_credentials.id
+  # This bootstraps a deployable environment, but the generated password is
+  # stored in OpenTofu state. Keep remote state encrypted and access-controlled;
+  # rotations should update Secrets Manager directly and not be reverted here.
+  secret_string = jsonencode({
+    username = local.db_app_username
+    password = data.aws_secretsmanager_random_password.db_app_credentials.random_password
+  })
+
+  lifecycle {
+    ignore_changes = [secret_string]
+  }
+}

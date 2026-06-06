@@ -7,7 +7,7 @@ public class AccountLimitExceededException extends RuntimeException {
 
   /** Creates a new exception for the given customer. */
   public AccountLimitExceededException(final String customerId) {
-    super("Customer %s has reached the maximum of 5 accounts".formatted(customerId));
+    super("Maximum account limit reached");
     this.customerId = customerId;
   }
 

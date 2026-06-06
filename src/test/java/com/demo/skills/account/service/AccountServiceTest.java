@@ -5,13 +5,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 
 import com.demo.skills.account.domain.Account;
 import com.demo.skills.account.domain.AccountRepository;
 import com.demo.skills.account.domain.AccountStatus;
-import com.demo.skills.account.domain.BlockedNicknameRepository;
 import com.demo.skills.api.model.AccountResponse;
 import com.demo.skills.api.model.CreateAccountRequest;
 import com.demo.skills.exception.AccountLimitExceededException;
@@ -19,6 +19,7 @@ import com.demo.skills.exception.AccountNotFoundException;
 import com.demo.skills.exception.NicknameNotAllowedException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -30,8 +31,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class AccountServiceTest {
 
   private static final String CUSTOMER_ID = "1234567";
@@ -40,7 +43,7 @@ class AccountServiceTest {
   private AccountRepository accountRepository;
 
   @Mock
-  private BlockedNicknameRepository blockedNicknameRepository;
+  private NaughtyNameService naughtyNameService;
 
   @Mock
   private AccountNumberGenerator accountNumberGenerator;
@@ -109,7 +112,9 @@ class AccountServiceTest {
       val request = new CreateAccountRequest();
       request.setCustomerName("Alice Smith");
       request.setNickName("blocked");
-      given(blockedNicknameRepository.countByNormalizedValueIn(List.of("blocked"))).willReturn(1L);
+      willThrow(new NicknameNotAllowedException())
+          .given(naughtyNameService)
+          .containsBlockedNicknameToken("blocked");
 
       // when / then
       assertThatThrownBy(() -> accountService.createAccount(CUSTOMER_ID, request))
@@ -125,8 +130,9 @@ class AccountServiceTest {
       val request = new CreateAccountRequest();
       request.setCustomerName("Alice Smith");
       request.setNickName("safe blocked");
-      given(blockedNicknameRepository.countByNormalizedValueIn(List.of("safe", "blocked")))
-          .willReturn(1L);
+      willThrow(new NicknameNotAllowedException())
+          .given(naughtyNameService)
+          .containsBlockedNicknameToken("safe blocked");
 
       // when / then
       assertThatThrownBy(() -> accountService.createAccount(CUSTOMER_ID, request))
@@ -142,8 +148,9 @@ class AccountServiceTest {
       val request = new CreateAccountRequest();
       request.setCustomerName("Alice Smith");
       request.setNickName("notallowed1");
-      given(blockedNicknameRepository.countByNormalizedValueIn(List.of("notallowed")))
-          .willReturn(1L);
+      willThrow(new NicknameNotAllowedException())
+          .given(naughtyNameService)
+          .containsBlockedNicknameToken("notallowed1");
 
       // when / then
       assertThatThrownBy(() -> accountService.createAccount(CUSTOMER_ID, request))
@@ -164,14 +171,14 @@ class AccountServiceTest {
       // when / then
       assertThatThrownBy(() -> accountService.createAccount(CUSTOMER_ID, request))
           .isInstanceOf(AccountLimitExceededException.class)
-          .hasMessageContaining(CUSTOMER_ID);
+          .hasMessage("Maximum account limit reached");
 
       then(accountRepository).should(never()).save(any());
     }
 
     @Test
-    @DisplayName("does not check profanity when nickname is absent")
-    void skipsBlocklistCheckWhenNoNickname() {
+    @DisplayName("validates nullable nickname when nickname is absent")
+    void validatesNullableNicknameWhenNoNickname() {
       // given
       val request = new CreateAccountRequest();
       request.setCustomerName("Alice Smith");
@@ -187,7 +194,28 @@ class AccountServiceTest {
       accountService.createAccount(CUSTOMER_ID, request);
 
       // then
-      then(blockedNicknameRepository).should(never()).countByNormalizedValueIn(any());
+      then(naughtyNameService).should().containsBlockedNicknameToken(null);
+    }
+
+    @Test
+    @DisplayName("does not log raw account numbers when creating an account")
+    void doesNotLogRawAccountNumber(final CapturedOutput output) {
+      // given
+      val request = new CreateAccountRequest();
+      request.setCustomerName("Alice Smith");
+
+      val allocation = new AccountNumberGenerator.AccountNumberAllocation("03 1509 0000001", "00");
+      given(accountRepository.countByCustomerIdAndStatusNot(CUSTOMER_ID, AccountStatus.CLOSED))
+          .willReturn(0L);
+      given(accountNumberGenerator.allocate(CUSTOMER_ID)).willReturn(allocation);
+      given(accountRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+      given(accountMapper.toResponse(any())).willReturn(anAccountResponse());
+
+      // when
+      accountService.createAccount(CUSTOMER_ID, request);
+
+      // then
+      assertThat(output).contains("Account created").doesNotContain(allocation.accountNumber());
     }
   }
 
@@ -298,7 +326,7 @@ class AccountServiceTest {
     response.setCustomerId(CUSTOMER_ID);
     response.setCustomerName("Alice Smith");
     response.setStatus(com.demo.skills.api.model.AccountStatus.ACTIVE);
-    response.setCreatedAt(OffsetDateTime.now());
+    response.setCreatedAt(OffsetDateTime.now(ZoneOffset.UTC));
     return response;
   }
 }

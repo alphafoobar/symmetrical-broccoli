@@ -25,6 +25,12 @@ output "db_secret_arn" {
   sensitive   = true
 }
 
+output "db_app_secret_arn" {
+  description = "ARN of the Secrets Manager secret containing application database credentials"
+  value       = aws_secretsmanager_secret.db_app_credentials.arn
+  sensitive   = true
+}
+
 output "redis_host" {
   description = "Primary endpoint for the Valkey replication group"
   value       = aws_elasticache_replication_group.main.primary_endpoint_address

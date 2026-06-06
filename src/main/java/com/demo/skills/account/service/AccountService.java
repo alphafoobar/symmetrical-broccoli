@@ -3,17 +3,13 @@ package com.demo.skills.account.service;
 import com.demo.skills.account.domain.Account;
 import com.demo.skills.account.domain.AccountRepository;
 import com.demo.skills.account.domain.AccountStatus;
-import com.demo.skills.account.domain.BlockedNicknameRepository;
 import com.demo.skills.api.model.AccountListResponse;
 import com.demo.skills.api.model.AccountResponse;
 import com.demo.skills.api.model.CreateAccountRequest;
 import com.demo.skills.exception.AccountLimitExceededException;
 import com.demo.skills.exception.AccountNotFoundException;
-import com.demo.skills.exception.NicknameNotAllowedException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import java.time.Instant;
-import java.util.Arrays;
-import java.util.Locale;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,7 +28,7 @@ public class AccountService {
   private static final int MAX_ACCOUNTS = 5;
 
   private final AccountRepository accountRepository;
-  private final BlockedNicknameRepository blockedNicknameRepository;
+  private final NaughtyNameService naughtyNameService;
   private final AccountNumberGenerator accountNumberGenerator;
   private final AccountMapper accountMapper;
 
@@ -51,9 +47,7 @@ public class AccountService {
   public AccountResponse createAccount(
       final String customerId, final CreateAccountRequest request) {
     val nickName = request.getNickName();
-    if (nickName != null && containsBlockedNicknameToken(nickName)) {
-      throw new NicknameNotAllowedException();
-    }
+    naughtyNameService.containsBlockedNicknameToken(nickName);
 
     accountRepository.lockCustomerAccountCreation(customerId);
 
@@ -83,27 +77,10 @@ public class AccountService {
     log.atInfo()
         .addKeyValue("customerId", customerId)
         .addKeyValue("accountId", saved.getAccountId())
-        .addKeyValue("accountNumber", allocation.accountNumber())
         .addKeyValue("suffix", allocation.suffix())
         .log("Account created");
 
     return accountMapper.toResponse(saved);
-  }
-
-  private boolean containsBlockedNicknameToken(final String nickName) {
-    val normalizedTokens =
-        Arrays.stream(nickName.split("\\s+"))
-            .map(AccountService::lettersOnlyLowercase)
-            .filter(token -> !token.isBlank())
-            .distinct()
-            .toList();
-
-    return !normalizedTokens.isEmpty()
-        && blockedNicknameRepository.countByNormalizedValueIn(normalizedTokens) > 0;
-  }
-
-  private static String lettersOnlyLowercase(final String value) {
-    return value.replaceAll("[^A-Za-z]", "").toLowerCase(Locale.ROOT);
   }
 
   /** Returns the account with the given ID when it belongs to the authenticated customer. */

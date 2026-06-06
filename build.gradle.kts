@@ -27,6 +27,7 @@ repositories {
 }
 
 extra["springCloudVersion"] = "2025.1.1"
+extra["springCloudAwsVersion"] = "4.0.2"
 extra["testcontainersVersion"] = "2.0.5"
 
 dependencies {
@@ -41,6 +42,7 @@ dependencies {
 	implementation("io.micrometer:micrometer-tracing-bridge-brave")
 	implementation("org.flywaydb:flyway-database-postgresql")
 	implementation("org.springframework.cloud:spring-cloud-starter-circuitbreaker-resilience4j")
+	implementation("io.awspring.cloud:spring-cloud-aws-starter-secrets-manager")
 	
 	compileOnly("org.projectlombok:lombok")
 	implementation("org.springframework.boot:spring-boot-starter-data-redis")
@@ -77,6 +79,7 @@ dependencies {
 dependencyManagement {
 	imports {
 		mavenBom("org.springframework.cloud:spring-cloud-dependencies:${property("springCloudVersion")}")
+		mavenBom("io.awspring.cloud:spring-cloud-aws-dependencies:${property("springCloudAwsVersion")}")
 		mavenBom("org.testcontainers:testcontainers-bom:${property("testcontainersVersion")}")
 	}
 }
