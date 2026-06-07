@@ -3,6 +3,8 @@
 Spring Boot REST API for savings account workflows, with a static HTML UI for
 local/manual testing.
 
+Deployed UI: https://d3ce8dxzblk8d3.cloudfront.net
+
 ## Prerequisites
 
 - Docker with Docker Compose
@@ -131,7 +133,8 @@ so browser calls stay same-origin.
 
 ## Deploy To AWS
 
-The AWS infrastructure in `infra/` provisions:
+Deployment is script-driven from the repository root. The infrastructure code in
+`infra/` provisions:
 
 - VPC with public and private subnets
 - ECR repository for the Spring Boot API image
@@ -144,111 +147,84 @@ The AWS infrastructure in `infra/` provisions:
 - S3 bucket and CloudFront distribution for static frontend assets, API calls,
   and mock OAuth2 calls
 
-Deployment scripts are available from the repository root:
+### 1. Create Environment Variables
 
-```sh
-./deploy-api.sh dev
-./deploy-ui.sh dev
-```
+Each environment needs a matching tfvars file. For `dev`, create
+`infra/dev.tfvars`:
 
-The scripts default to `infra/<environment>.tfvars`, `tofu`, the AWS profile and
-region from the tfvars file. API images are built for `linux/amd64` and tagged
-with `<environment>-<UTC timestamp>` by default so ECS points at a specific
-immutable artifact. Set `IMAGE_TAG` only when you need a custom, unused tag.
-Set `AUTO_APPROVE=true` for non-interactive OpenTofu applies.
-
-Required deployment inputs:
-
-- `environment`: deployment environment name, for example `dev`
-
-Optional inputs have defaults in `infra/variables.tf`, including
-`aws_profile = "projects"`, `aws_region = "ap-southeast-6"` (Auckland),
-`project = "skills"`, `db_name = "skills"`, `ecr_repository_name =
-"skills-api"`, `mock_oauth2_image`, and `image_tag`.
-
-The API load balancer serves HTTP by default. Set `api_certificate_arn` to an
-ACM certificate ARN to enable HTTPS on port `443`.
-
-### 1. Create Deployment Variables
-
-Set common shell variables:
-
-```sh
-export AWS_PROFILE=projects
-export AWS_REGION=ap-southeast-6
-export ENVIRONMENT=dev
-export ECR_REPOSITORY=skills-api
-```
-
-Create an environment tfvars file. Do not commit environment tfvars files if
-they contain account-specific or sensitive values.
-
-```sh
-cat > infra/dev.tfvars <<EOF
+```hcl
 environment = "dev"
 aws_profile = "projects"
 aws_region  = "ap-southeast-6"
-EOF
 ```
 
-### 2. Create ECR
+Do not commit tfvars files if they contain account-specific or sensitive values.
 
-Initialize OpenTofu and create the ECR repository first. This lets Docker push
-the image before the ECS service is created.
+The scripts default to `infra/<environment>.tfvars`, read `aws_profile` and
+`aws_region` from that file, and use `tofu` with a `terraform` fallback. You can
+override those defaults with environment variables:
+
+- `TF_BIN`: OpenTofu/Terraform binary, for example `tofu` or `terraform`
+- `TFVARS`: tfvars file path
+- `AWS_PROFILE`: AWS CLI profile
+- `AWS_REGION`: AWS region
+
+### 2. Deploy The API
+
+Run:
 
 ```sh
-cd infra
-tofu init
-tofu apply \
-  -target=aws_ecr_repository.api \
-  -target=aws_ecr_lifecycle_policy.api \
-  -var-file=dev.tfvars
-cd ..
-
-export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
-export ECR_REPOSITORY_URL="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY"
-export IMAGE_TAG="$ENVIRONMENT-$(date -u +%Y%m%dT%H%M%SZ)"
-export IMAGE_URI="$ECR_REPOSITORY_URL:$IMAGE_TAG"
+./deploy-api.sh dev
 ```
 
-### 3. Build And Push The API Image
+The script:
 
-Build and push the image:
+1. Initializes OpenTofu.
+2. Formats and validates the infrastructure.
+3. Creates or updates the ECR repository.
+4. Builds the Spring Boot Docker image for ECS Fargate.
+5. Pushes the image to ECR.
+6. Applies the AWS stack.
+7. Forces ECS to pull the pushed image tag.
+8. Prints the API URL.
+
+API images are built for `linux/amd64` and tagged with
+`<environment>-<UTC timestamp>` by default so ECS points at a specific immutable
+artifact.
+
+Useful API deployment overrides:
+
+- `IMAGE_TAG`: custom Docker/ECS image tag
+- `DOCKER_PLATFORM`: Docker target platform, default `linux/amd64`
+- `AUTO_APPROVE=true`: pass `-auto-approve` to OpenTofu apply commands
+- `WAIT_FOR_ECS=false`: skip waiting for ECS service stability
+
+The API load balancer serves HTTP by default. Set `api_certificate_arn` in the
+environment tfvars file to an ACM certificate ARN to enable HTTPS on port `443`.
+
+### 3. Deploy The UI
+
+After the infrastructure exists, run:
 
 ```sh
-docker build --platform linux/amd64 -t "$IMAGE_URI" .
-
-aws ecr get-login-password --region "$AWS_REGION" |
-  docker login \
-    --username AWS \
-    --password-stdin "$ECR_REPOSITORY_URL"
-
-docker push "$IMAGE_URI"
+./deploy-ui.sh dev
 ```
 
-### 4. Plan And Apply Infrastructure
+The script:
 
-Initialize, validate, and plan:
+1. Initializes OpenTofu.
+2. Validates the infrastructure.
+3. Reads the frontend S3 bucket and CloudFront URL from OpenTofu outputs.
+4. Syncs `public/` to S3 with `--delete`.
+5. Invalidates CloudFront.
+6. Prints the frontend URL.
 
-```sh
-cd infra
-tofu fmt -check
-tofu validate
-tofu plan -var-file=dev.tfvars
-```
+Set `INVALIDATE_CLOUDFRONT=false` if you want to skip the invalidation step.
 
-Apply after reviewing the plan:
+The hosted frontend keeps the same paths as local Docker Compose: `/api/*`
+forwards to the API and `/default/*` forwards to the mock OAuth2 issuer.
 
-```sh
-tofu apply -var-file=dev.tfvars
-```
-
-Read the deployed URLs:
-
-```sh
-tofu output api_url
-tofu output frontend_url
-```
+### Runtime Secrets
 
 OpenTofu creates a separate Secrets Manager secret for the low-privilege
 application database user. The initial password is generated through AWS Secrets
@@ -278,19 +254,7 @@ application database secret and RDS master secret from Secrets Manager at
 startup. The normal datasource uses the low-privilege `skills_app` credentials;
 Flyway uses the imported RDS master credentials only for migrations and grants.
 
-### 5. Upload Frontend Assets
-
-After the infrastructure exists, sync the static UI to the frontend bucket:
-
-```sh
-aws s3 sync ../public "s3://$(tofu output -raw s3_bucket_name)" --delete
-```
-
-CloudFront may take a few minutes to serve updated files. The hosted frontend
-keeps the same paths as local Docker Compose: `/api/*` forwards to the API and
-`/default/*` forwards to the mock OAuth2 issuer.
-
-### 6. Destroy A Non-Production Environment
+### Destroy A Non-Production Environment
 
 Use this only for disposable environments:
 
@@ -301,22 +265,3 @@ tofu destroy -var-file=dev.tfvars
 
 RDS has deletion protection enabled, so database teardown requires explicitly
 changing that setting before destroy can complete.
-
-### Useful AWS Commands
-
-Check which account the `projects` profile points at:
-
-```sh
-aws sts get-caller-identity --profile projects
-```
-
-Force a new ECS deployment after pushing a replacement image with the same tag:
-
-```sh
-aws ecs update-service \
-  --profile projects \
-  --region "$AWS_REGION" \
-  --cluster "$(tofu -chdir=infra output -raw cluster_name)" \
-  --service "$(tofu -chdir=infra output -raw service_name)" \
-  --force-new-deployment
-```
