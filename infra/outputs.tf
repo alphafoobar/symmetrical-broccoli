@@ -80,3 +80,8 @@ output "image_uri" {
   description = "API image URI referenced by the ECS task definition"
   value       = local.image_uri
 }
+
+output "api_dashboard_name" {
+  description = "CloudWatch dashboard name for API health and response time metrics"
+  value       = aws_cloudwatch_dashboard.api.dashboard_name
+}
