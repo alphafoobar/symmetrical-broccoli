@@ -3,7 +3,7 @@
 Spring Boot REST API for savings account workflows, with a static HTML UI for
 local/manual testing.
 
-Deployed UI: https://d3ce8dxzblk8d3.cloudfront.net
+~~ Deployed UI: https://d3ce8dxzblk8d3.cloudfront.net ~~ AWS terraform deployment destroyed.
 
 ## Prerequisites
 
